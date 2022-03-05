@@ -98,6 +98,8 @@ public class NetworkScript : MonoBehaviour {
         sendData.x = players[id].transform.position.x;
         sendData.y = players[id].transform.position.y;
         
+        //TODO: Get remote position, compare it to local position and generate positions based on distance between both to smoothly transition the remote position towards the local position.
+
         string json = JsonUtility.ToJson(sendData); //Convert to String
         Debug.Log(json);
         
