@@ -11,14 +11,14 @@ public class NetworkScript : MonoBehaviour {
 
     bool upKey, downKey, leftKey, rightKey;
 
-
     public PlayerScript[] players = new PlayerScript[2];
+    public List<PowerUp> powerUps = new List<PowerUp>();
     Sendable sendData = new Sendable();
 
     void Start() {
-        
+
         string sendIp = "127.0.0.1";
-        
+
         int sendPort, receivePort;
         if (isServer) {
             sendPort = 8881;
@@ -33,38 +33,52 @@ public class NetworkScript : MonoBehaviour {
         connection = new UdpConnection();
         connection.StartConnection(sendIp, sendPort, receivePort);
     }
- 
+
     void FixedUpdate() {
+
         //Check input...
         if (upKey) {
-            players[myID].transform.Translate(0, .1f, 0);
+            players[myID].transform.Translate(0, players[myID].activeSpeed, 0);
             UpdatePositions(myID);
         }
         if (downKey)
         {
-            players[myID].transform.Translate(0, -.1f, 0);
+            players[myID].transform.Translate(0, -players[myID].activeSpeed, 0);
             UpdatePositions(myID);
         }
         if (leftKey)
         {
-            players[myID].transform.Translate(-.1f, 0, 0);
+            players[myID].transform.Translate(-players[myID].activeSpeed, 0, 0);
             UpdatePositions(myID);
         }
         if (rightKey)
         {
-            players[myID].transform.Translate(.1f, 0, 0);
+            players[myID].transform.Translate(players[myID].activeSpeed, 0, 0);
             UpdatePositions(myID);
+        }
+
+        if (powerUps.Count > 0)
+        {
+            foreach (PowerUp powerUp in powerUps.ToArray())
+            {
+                if (powerUp.pickedUp)
+                {
+                    powerUps.Remove(powerUp);
+                    Destroy(powerUp.gameObject);
+                }
+
+                powerUp.transform.Rotate(0, 0.5f, 0);
+            }
         }
 
         //network stuff:
         CheckIncomingMessages();
-            
     }
 
     public void Update()
     {
         //handling keyboard (in Update, because FixedUpdate isnt meant for that(!))
-        if (Input.GetKeyDown("w")) upKey = true;       
+        if (Input.GetKeyDown("w")) upKey = true;
         if (Input.GetKeyUp("w")) upKey = false;
         if (Input.GetKeyDown("s")) downKey = true;
         if (Input.GetKeyUp("s")) downKey = false;
@@ -89,24 +103,21 @@ public class NetworkScript : MonoBehaviour {
                 players[i].transform.position = new Vector3(sendData.x, sendData.y, 0);
             }
         }
-
     }
+
     public void UpdatePositions(int id)
     {
         //update sendData-object
         sendData.id = id;
         sendData.x = players[id].transform.position.x;
         sendData.y = players[id].transform.position.y;
-        
-        //TODO: Get remote position, compare it to local position and generate positions based on distance between both to smoothly transition the remote position towards the local position.
 
         string json = JsonUtility.ToJson(sendData); //Convert to String
         Debug.Log(json);
-        
-        connection.Send(json); //send the string
 
+        connection.Send(json); //send the string
     }
- 
+
     void OnDestroy() {
         connection.Stop();
     }
