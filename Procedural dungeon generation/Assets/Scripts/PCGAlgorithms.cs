@@ -18,6 +18,23 @@ public class PCGAlgorithms : MonoBehaviour
 
         return path;
     }
+    public static List<Vector2Int> RandomWalkCorridor(Vector2Int startPosition, int corridorLength)//Used List here because this is not used in repeatedly and we require the last item in the list to proceed generating from
+    {
+        List<Vector2Int> corridor = new List<Vector2Int>();
+
+        var direction = Direction2D.GetRandomDirection();
+        var currentPosition = startPosition;
+
+        corridor.Add(currentPosition);
+
+        for (int i = 0; i < corridorLength; i++)
+        {
+            currentPosition += direction;
+            corridor.Add(currentPosition);
+        }
+
+        return corridor;
+    }
 }
 
 public static class Direction2D
