@@ -96,11 +96,12 @@ public class RoomFirstGenerator : SimpleWalkGenerator
         return corridors;
     }
 
-    private HashSet<Vector2Int> CreateCorridor(Vector2Int currentRoomCenter, Vector2Int destination)//TODO: Adjust this to generate more random corridors either by using CA or adjust current code.
+    private HashSet<Vector2Int> CreateCorridor(Vector2Int currentRoomCenter, Vector2Int destination)//TODO: Adjust this to generate more random corridors either by using CA or adjusting current code.
     {
         HashSet<Vector2Int> corridor = new HashSet<Vector2Int>();
         var position = currentRoomCenter;
         corridor.Add(position);
+
         while (position.y != destination.y)
         {
             if (destination.y > position.y)//move up or down until we are at the destination y value
