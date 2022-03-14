@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
+using static PCGAlgorithms;
 using Random = UnityEngine.Random;
 
 public class RoomFirstGenerator : SimpleWalkGenerator
@@ -15,6 +17,8 @@ public class RoomFirstGenerator : SimpleWalkGenerator
     private int offset = 1;
     [SerializeField]
     private bool randomWalkRooms = false;
+    [SerializeField]
+    private bool mixedRooms = false;
     [SerializeField]
     private GameObject knife, key;
     protected override void RunProceduralGeneration()
@@ -31,6 +35,10 @@ public class RoomFirstGenerator : SimpleWalkGenerator
         if (randomWalkRooms)
         {
             floor = CreateRandomRooms(roomsList);
+        }
+        else if (mixedRooms)
+        {
+            floor = CreateMixedRooms(roomsList);
         }else
             floor = CreateSimpleRooms(roomsList);
 
@@ -47,26 +55,7 @@ public class RoomFirstGenerator : SimpleWalkGenerator
         floor.UnionWith(corridors);
 
         tilemapVisualizer.PaintFloorTiles(floor);
-    }
-
-    private HashSet<Vector2Int> CreateRandomRooms(List<BoundsInt> roomsList)//use our randomWalk algorithm to generate rooms at the appropriate points
-    {
-        HashSet<Vector2Int> floor = new HashSet<Vector2Int>();
-        for (int i = 0; i < roomsList.Count; i++)
-        {
-            var roomBounds = roomsList[i];
-            var roomCenter = new Vector2Int(Mathf.RoundToInt(roomBounds.center.x), Mathf.RoundToInt(roomBounds.center.y));
-            var roomFloor = RandomWalk(randomWalkParameters, roomCenter);
-            foreach (var position in roomFloor)
-            {
-                if (position.x >= (roomBounds.xMin + offset) && position.x <= (roomBounds.xMax - offset) && position.y >= (roomBounds.yMin - offset) && position.y <= (roomBounds.yMax - offset))
-                {
-                    floor.Add(position);
-                }
-            }
-        }
-        return floor;
-    }
+    }    
 
     private void PlaceItems(List<Vector2Int> roomCenters)
     {
@@ -90,6 +79,7 @@ public class RoomFirstGenerator : SimpleWalkGenerator
             Vector2Int closest = FindClosestPointTo(currentRoomCenter, roomCenters);
             roomCenters.Remove(closest);
             HashSet<Vector2Int> newCorridor = CreateCorridor(currentRoomCenter, closest);
+            //HashSet<Vector2Int> newCorridor = CreateRandomCorridor(currentRoomCenter, closest);
             currentRoomCenter = closest;
             corridors.UnionWith(newCorridor);
         }
@@ -130,6 +120,41 @@ public class RoomFirstGenerator : SimpleWalkGenerator
         return corridor;
     }
 
+    private HashSet<Vector2Int> CreateRandomCorridor(Vector2Int currentRoomCenter, Vector2Int destination)//TODO: Adjust this to generate more random corridors either by using CA or adjusting current code.
+    {
+        HashSet<Vector2Int> corridor = new HashSet<Vector2Int>();
+        var position = currentRoomCenter;
+        var previous = currentRoomCenter;
+        corridor.Add(position);
+
+        while (position != destination)
+        {
+            List<Vector2Int> neighbours = FindAllNeighbours(position);
+            var possibleNext = neighbours.Where(n => n != previous && CheckHeuristic(n, destination, currentRoomCenter));
+            possibleNext = possibleNext.OrderBy(m => Random.Range(0f, 1f));//Grab random neighbour that meets the requirements
+            previous = position;
+            position = possibleNext.First();
+            corridor.Add(possibleNext.First());
+        }
+
+        return corridor;
+    }
+
+    private List<Vector2Int> FindAllNeighbours(Vector2Int position)
+    {
+        List<Vector2Int> neighbours = new List<Vector2Int>();
+        foreach (var direction in Direction2D.cardinalDirectionList)
+        {
+            neighbours.Add(position + direction);
+        }
+        return neighbours;
+    }
+
+    private bool CheckHeuristic(Vector2Int candidate, Vector2Int finalDestination, Vector2Int startingCenter)
+    {
+        return Vector2Int.Distance(candidate, finalDestination) <= Vector2Int.Distance(startingCenter, finalDestination);
+    }
+
     private Vector2Int FindClosestPointTo(Vector2Int currentRoomCenter, List<Vector2Int> roomCenters)
     {
         Vector2Int closest = Vector2Int.zero;
@@ -146,6 +171,59 @@ public class RoomFirstGenerator : SimpleWalkGenerator
             }
         }
         return closest;
+    }
+
+    private HashSet<Vector2Int> CreateRandomRooms(List<BoundsInt> roomsList)//use our randomWalk algorithm to generate rooms at the appropriate points
+    {
+        HashSet<Vector2Int> floor = new HashSet<Vector2Int>();
+        for (int i = 0; i < roomsList.Count; i++)
+        {
+            var roomBounds = roomsList[i];
+            var roomCenter = new Vector2Int(Mathf.RoundToInt(roomBounds.center.x), Mathf.RoundToInt(roomBounds.center.y));
+            var roomFloor = RandomWalk(randomWalkParameters, roomCenter);
+            foreach (var position in roomFloor)
+            {
+                if (position.x >= (roomBounds.xMin + offset) && position.x <= (roomBounds.xMax - offset) && position.y >= (roomBounds.yMin - offset) && position.y <= (roomBounds.yMax - offset))
+                {
+                    floor.Add(position);
+                }
+            }
+        }
+        return floor;
+    }
+
+    private HashSet<Vector2Int> CreateMixedRooms(List<BoundsInt> roomsList)
+    {
+        HashSet<Vector2Int> floor = new HashSet<Vector2Int>();
+        for (int i = 0; i < roomsList.Count; i++)
+        {
+            float randomizer = Random.value;
+            if (randomizer < 0.5f)
+            {
+                var roomBounds = roomsList[i];
+                var roomCenter = new Vector2Int(Mathf.RoundToInt(roomBounds.center.x), Mathf.RoundToInt(roomBounds.center.y));
+                var roomFloor = RandomWalk(randomWalkParameters, roomCenter);
+                foreach (var position in roomFloor)
+                {
+                    if (position.x >= (roomBounds.xMin + offset) && position.x <= (roomBounds.xMax - offset) && position.y >= (roomBounds.yMin - offset) && position.y <= (roomBounds.yMax - offset))
+                    {
+                        floor.Add(position);
+                    }
+                }
+            }
+            else
+            {
+                for (int col = offset; col < roomsList[i].size.x - offset; col++)
+                {
+                    for (int row = offset; row < roomsList[i].size.y - offset; row++)
+                    {
+                        Vector2Int position = (Vector2Int)roomsList[i].min + new Vector2Int(col, row);
+                        floor.Add(position);
+                    }
+                }
+            }
+        }
+        return floor;
     }
 
     private HashSet<Vector2Int> CreateSimpleRooms(List<BoundsInt> roomsList)
