@@ -55,7 +55,7 @@ public class CorridorFirstGenerator : SimpleWalkGenerator
             int neighboursCount = 0;
             foreach (var direction in Direction2D.cardinalDirectionList)
             {
-                if (floorPositions.Contains(position + direction))//check for neighbouring tiles and add them to the neighbour count for each position in floorpositions
+                if (floorPositions.Contains(position + direction))//check for neighbouring tiles and add them to the neighbour count for each corresponding position in floorpositions
                     neighboursCount++;
             }
 

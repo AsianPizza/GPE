@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -10,17 +9,33 @@ public class RoomFirstGenerator : SimpleWalkGenerator
 {
     [SerializeField]
     private int minRoomWidth = 4, minRoomHeight = 4;
+
     [SerializeField]
     private int dungeonWidth = 20, dungeonHeight = 20;
+
+    [SerializeField]
+    private float maxPathOffsetX = 6, maxPathOffsetY = 6;
+
     [SerializeField]
     [Range(0, 10)]
     private int offset = 1;
+
     [SerializeField]
     private bool randomWalkRooms = false;
+
     [SerializeField]
     private bool mixedRooms = false;
+
+    [SerializeField]
+    private bool singleMixedRooms = false;
+
     [SerializeField]
     private GameObject knife, key;
+
+    private HashSet<Vector2Int> corridors = new HashSet<Vector2Int>();
+    private HashSet<Vector2Int> supposedCorridors = new HashSet<Vector2Int>();
+    private List<BoundsInt> roomsCheck = new List<BoundsInt>();
+
     protected override void RunProceduralGeneration()
     {
         CreateRooms();
@@ -29,6 +44,8 @@ public class RoomFirstGenerator : SimpleWalkGenerator
     private void CreateRooms()
     {
         var roomsList = PCGAlgorithms.BinarySpacePartitioning(new BoundsInt((Vector3Int)startPosition, new Vector3Int(dungeonWidth, dungeonHeight, 0)), minRoomWidth, minRoomHeight);
+
+        roomsCheck = roomsList;
 
         HashSet<Vector2Int> floor = new HashSet<Vector2Int>();
 
@@ -39,7 +56,8 @@ public class RoomFirstGenerator : SimpleWalkGenerator
         else if (mixedRooms)
         {
             floor = CreateMixedRooms(roomsList);
-        }else
+        }
+        else
             floor = CreateSimpleRooms(roomsList);
 
         List<Vector2Int> roomCenters = new List<Vector2Int>();
@@ -50,12 +68,22 @@ public class RoomFirstGenerator : SimpleWalkGenerator
             objectRoomCenters.Add((Vector2Int)Vector3Int.RoundToInt(room.center));
         }
 
-        HashSet<Vector2Int> corridors = ConnectRooms(roomCenters);
+        corridors = ConnectRooms(roomCenters);
         //PlaceItems(objectRoomCenters);
         floor.UnionWith(corridors);
 
+        if (singleMixedRooms & !randomWalkRooms & !mixedRooms)
+        {
+            var singleCorridorRooms = GetSingleCorridorRooms(roomsList, floor);
+
+            if (singleCorridorRooms != null)
+            {
+                floor.UnionWith(CreateSingleMixedRooms(roomsList, singleCorridorRooms, floor));
+            }
+        }
+
         tilemapVisualizer.PaintFloorTiles(floor);
-    }    
+    }
 
     private void PlaceItems(List<Vector2Int> roomCenters)
     {
@@ -78,10 +106,17 @@ public class RoomFirstGenerator : SimpleWalkGenerator
         {
             Vector2Int closest = FindClosestPointTo(currentRoomCenter, roomCenters);
             roomCenters.Remove(closest);
-            HashSet<Vector2Int> newCorridor = CreateCorridor(currentRoomCenter, closest);
-            //HashSet<Vector2Int> newCorridor = CreateRandomCorridor(currentRoomCenter, closest);
+            if (randomWalkRooms)
+            {
+                HashSet<Vector2Int> newRandomCorridor = CreateRandomCorridor(currentRoomCenter, closest);
+                corridors.UnionWith(newRandomCorridor);
+            }
+            else
+            {
+                HashSet<Vector2Int> newCorridor = CreateCorridor(currentRoomCenter, closest);
+                corridors.UnionWith(newCorridor);
+            }
             currentRoomCenter = closest;
-            corridors.UnionWith(newCorridor);
         }
         return corridors;
     }
@@ -92,30 +127,32 @@ public class RoomFirstGenerator : SimpleWalkGenerator
         var position = currentRoomCenter;
         corridor.Add(position);
 
-        while (position.y != destination.y)
+        while (position != destination)
         {
-            if (destination.y > position.y)//move up or down until we are at the destination y value
+            if (Random.Range(0f, 1f) < 0.5f)
             {
-                position += Vector2Int.up;
+                if (destination.y > position.y)//move up or down until we are at the destination y value
+                {
+                    position += Vector2Int.up;
+                }
+                else if (destination.y < position.y)
+                {
+                    position += Vector2Int.down;
+                }
+                corridor.Add(position);
             }
-            else if (destination.y < position.y)
+            else
             {
-                position += Vector2Int.down;
+                if (destination.x > position.x)
+                {
+                    position += Vector2Int.right;
+                }
+                else if (destination.x < position.x)
+                {
+                    position += Vector2Int.left;
+                }
+                corridor.Add(position);
             }
-            corridor.Add(position);
-        }
-
-        while (position.x != destination.x)//move left or right untill we are at the destination's x value
-        {
-            if (destination.x > position.x)
-            {
-                position += Vector2Int.right;
-            }
-            else if (destination.x < position.x)
-            {
-                position += Vector2Int.left;
-            }
-            corridor.Add(position);
         }
         return corridor;
     }
@@ -130,7 +167,7 @@ public class RoomFirstGenerator : SimpleWalkGenerator
         while (position != destination)
         {
             List<Vector2Int> neighbours = FindAllNeighbours(position);
-            var possibleNext = neighbours.Where(n => n != previous && CheckHeuristic(n, destination, currentRoomCenter));
+            var possibleNext = neighbours.Where(n => n != previous && CheckHeuristic(n, destination, currentRoomCenter, corridor));
             possibleNext = possibleNext.OrderBy(m => Random.Range(0f, 1f));//Grab random neighbour that meets the requirements
             previous = position;
             position = possibleNext.First();
@@ -148,11 +185,132 @@ public class RoomFirstGenerator : SimpleWalkGenerator
             neighbours.Add(position + direction);
         }
         return neighbours;
+    }    
+
+    private bool CheckHeuristic(Vector2Int candidate, Vector2Int finalDestination, Vector2Int startingCenter, HashSet<Vector2Int> corridor)
+    {
+        return Vector2Int.Distance(candidate, finalDestination) <= Vector2Int.Distance(startingCenter, finalDestination) && FindAllXNeighbours(candidate, corridor).Count < maxPathOffsetX && FindAllYNeighbours(candidate, corridor).Count < maxPathOffsetY;
     }
 
-    private bool CheckHeuristic(Vector2Int candidate, Vector2Int finalDestination, Vector2Int startingCenter)
+    private List<Vector2Int> FindAllXNeighbours(Vector2Int candidate, HashSet<Vector2Int> corridor)
     {
-        return Vector2Int.Distance(candidate, finalDestination) <= Vector2Int.Distance(startingCenter, finalDestination);
+        List<Vector2Int> xNeighbours = new List<Vector2Int>();
+        for (int i = 0; i < maxPathOffsetX; i++)
+        {
+            if (corridor.Contains(candidate + new Vector2Int(i, 0)))
+            {
+                xNeighbours.Add(candidate + new Vector2Int(i, 0));
+            }
+            if (corridor.Contains(candidate + new Vector2Int(-i, 0)))
+            {
+                xNeighbours.Add(candidate + new Vector2Int(-i, 0));
+            }
+        }
+        return xNeighbours;
+    }
+
+    private List<Vector2Int> FindAllYNeighbours(Vector2Int candidate, HashSet<Vector2Int> corridor)
+    {
+        List<Vector2Int> yNeighbours = new List<Vector2Int>();
+        for (int i = 0; i < maxPathOffsetY; i++)
+        {
+            if (corridor.Contains(candidate + new Vector2Int(0, i)))
+            {
+                yNeighbours.Add(candidate + new Vector2Int(0, i));
+            }
+            if (corridor.Contains(candidate + new Vector2Int(0, -i)))
+            {
+                yNeighbours.Add(candidate + new Vector2Int(0, -i));
+            }
+        }
+        return yNeighbours;
+    }
+
+    private List<BoundsInt> GetSingleCorridorRooms(List<BoundsInt> rooms, HashSet<Vector2Int> floorPositions)
+    {
+        List<BoundsInt> singleCorridorRooms = new List<BoundsInt>();
+        foreach (var room in rooms)//for each room get the edges then check if the floor contains a potition that is equal to an edge plus whatever direction the edge is facing, if so a corridor is connected to the room there
+        {
+            int corridorCount = 0;
+            List<Vector2Int> roomEdges = GetRoomEdges(room);
+            foreach (var edge in roomEdges)
+            {
+                if (edge.y == room.min.y + offset && floorPositions.Contains(edge + Vector2Int.down))
+                {
+                    supposedCorridors.Add(edge);
+                    corridorCount++;
+                }
+                else if (edge.y == room.min.y + room.size.y - offset - 1 && floorPositions.Contains(edge + Vector2Int.up))
+                {
+                    supposedCorridors.Add(edge);
+                    corridorCount++;
+                }
+                else if (edge.x == room.min.x + offset && floorPositions.Contains(edge + Vector2Int.left))
+                {
+                    supposedCorridors.Add(edge);
+                    corridorCount++;
+                }
+                else if (edge.x == room.min.x + room.size.x - offset - 1 && floorPositions.Contains(edge + Vector2Int.right))
+                {
+                    supposedCorridors.Add(edge);
+                    corridorCount++;
+                }
+            }
+            if (corridorCount == 1)
+                singleCorridorRooms.Add(room);
+        }
+        return singleCorridorRooms;
+    }
+
+    //private void OnDrawGizmos()
+    //{
+    //    foreach (var position in supposedCorridors)
+    //    {
+    //        Gizmos.color = Color.yellow;
+    //        Gizmos.DrawSphere(new Vector3(position.x, position.y, 0), .4f);
+    //    }
+    //    foreach (var room in roomsCheck)
+    //    {
+    //        List<Vector2Int> edgeCheck = GetRoomEdges(room);
+    //        foreach (var edge in edgeCheck)
+    //        {
+    //            Gizmos.color = Color.green;
+    //            Gizmos.DrawSphere(new Vector3(edge.x, edge.y, 0), .2f);
+    //        }
+    //    }
+    //
+    //    foreach (var room in roomsCheck)
+    //    {
+    //        for (int col = offset; col < room.size.x - offset; col++)
+    //        {
+    //            for (int row = offset; row < room.size.y - offset; row++)
+    //            {
+    //                Vector2Int position = (Vector2Int)room.min + new Vector2Int(col, row);
+    //
+    //                Gizmos.color = Color.blue;
+    //                Gizmos.DrawSphere(new Vector3(position.x, position.y, 0), .1f);
+    //            }
+    //        }
+    //    }
+    //}
+
+    private List<Vector2Int> GetRoomEdges(BoundsInt room)//Get the outer edges of all rooms using the offset
+    {
+        List<Vector2Int> roomEdges = new List<Vector2Int>();
+
+        for (int yOffset = offset; yOffset < room.size.y - offset; yOffset++)
+        {
+            roomEdges.Add((Vector2Int)room.min + new Vector2Int(offset, yOffset));
+            roomEdges.Add((Vector2Int)room.min + new Vector2Int(room.size.x - offset - 1, yOffset));
+        }
+
+        for (int xOffset = offset; xOffset < room.size.x - offset; xOffset++)
+        {
+            roomEdges.Add((Vector2Int)room.min + new Vector2Int(xOffset, offset));
+            roomEdges.Add((Vector2Int)room.min + new Vector2Int(xOffset, room.size.y - offset - 1));
+        }
+
+        return roomEdges;
     }
 
     private Vector2Int FindClosestPointTo(Vector2Int currentRoomCenter, List<Vector2Int> roomCenters)
@@ -223,6 +381,43 @@ public class RoomFirstGenerator : SimpleWalkGenerator
                 }
             }
         }
+        return floor;
+    }
+
+    private HashSet<Vector2Int> CreateSingleMixedRooms(List<BoundsInt> roomsList, List<BoundsInt> singleCorridorRooms, HashSet<Vector2Int> currentFloor)
+    {
+        HashSet<Vector2Int> floor = new HashSet<Vector2Int>();
+
+        foreach (var room in singleCorridorRooms)//remove the previously generated rectangular rooms from the floor hashset
+        {
+            for (int col = offset; col < room.size.x - offset; col++)
+            {
+                for (int row = offset; row < room.size.y - offset; row++)
+                {
+                    Vector2Int position = (Vector2Int)room.min + new Vector2Int(col, row);
+                    if (!corridors.Contains(position))
+                        currentFloor.Remove(position);
+                }
+            }
+            roomsList.Remove(room);
+        }
+
+        for (int i = 0; i < singleCorridorRooms.Count; i++)//generate a random walk room for each room that is only connected to a single other corridor
+        {
+            var roomBounds = singleCorridorRooms[i];
+            var roomCenter = new Vector2Int(Mathf.RoundToInt(roomBounds.center.x), Mathf.RoundToInt(roomBounds.center.y));
+            var roomFloor = RandomWalk(randomWalkParameters, roomCenter);
+            foreach (var position in roomFloor)
+            {
+                //check if the generated random walk tiles are within the room bounds to reduce the amount of overlap
+                if (position.x >= (roomBounds.xMin + offset) && position.x <= (roomBounds.xMax - offset) && position.y >= (roomBounds.yMin - offset) && position.y <= (roomBounds.yMax - offset))
+                {
+                    floor.Add(position);
+                }
+            }
+            roomsList.Add(singleCorridorRooms[i]);
+        }
+
         return floor;
     }
 
