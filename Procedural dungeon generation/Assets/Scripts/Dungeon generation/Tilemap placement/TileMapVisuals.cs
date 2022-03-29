@@ -9,9 +9,10 @@ public class TileMapVisuals : MonoBehaviour
     [SerializeField]
     private Tilemap floorTilemap, wallTilemap;
     [SerializeField]
-    private TileBase floorTile, wallTop, wallSideRight, wallSideLeft, wallBottom, wallFull, 
+    private TileBase floorTile, wallTop, wallSideRight, wallSideLeft, wallBottom, wallFull,
         wallInnerCornerDownLeft, wallInnerCornerDownRight, wallDiagonalCornerDownRight, wallDiagonalCornerDownLeft, wallDiagonalCornerUpRight, wallDiagonalCornerUpLeft,
-        doorLeft, doorRight, doorUp, doorDown;
+        doorLeft, doorRight, doorUp, doorDown,
+        table, chair, barrel, bones1, bones2;
 
     public void PaintFloorTiles(IEnumerable<Vector2Int> floorPositions)
     {
@@ -24,6 +25,13 @@ public class TileMapVisuals : MonoBehaviour
         {
             PaintSingeTile(tilemap, tile, position);
         }
+    }
+
+    internal void PaintSingleTable(Vector2Int position)
+    {
+        TileBase tile = null;
+        tile = table;
+        PaintSingeTile(floorTilemap, tile, position);
     }
 
     internal void PaintSingleBasicWall(Vector2Int position, string binaryType)
@@ -95,8 +103,8 @@ public class TileMapVisuals : MonoBehaviour
 
     public void Clear()
     {
-        floorTilemap.ClearAllTiles();
         wallTilemap.ClearAllTiles();
+        floorTilemap.ClearAllTiles();
     }
 
     internal void PaintSingleCornerWall(Vector2Int position, string binaryType)

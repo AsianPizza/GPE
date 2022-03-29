@@ -31,10 +31,10 @@ public class RoomFirstGenerator : SimpleWalkGenerator
 
     //Doors and objects
     [SerializeField]
-    [Range(0, 100)]
-    private int tablePercentage, objectPercentage, treasurePercentage;
+    [Range(0.1f, 1f)]
+    private float tablePercentage, objectPercentage, treasurePercentage;
 
-
+    public int currentOffset;
 
     private HashSet<Vector2Int> corridors = new HashSet<Vector2Int>();
     private HashSet<Vector2Int> corridorPositions = new HashSet<Vector2Int>();
@@ -48,6 +48,8 @@ public class RoomFirstGenerator : SimpleWalkGenerator
 
     private void CreateRooms()
     {
+        currentOffset = offset;
+
         var roomsList = PCGAlgorithms.BinarySpacePartitioning(new BoundsInt((Vector3Int)startPosition, new Vector3Int(dungeonWidth, dungeonHeight, 0)), minRoomWidth, minRoomHeight);
 
         roomsCheck = roomsList;
@@ -71,7 +73,6 @@ public class RoomFirstGenerator : SimpleWalkGenerator
         {
             roomCenters.Add((Vector2Int)Vector3Int.RoundToInt(room.center));
             objectRoomCenters.Add((Vector2Int)Vector3Int.RoundToInt(room.center));
-            GetActualRoomCenters(room);
         }
 
         corridors = ConnectRooms(roomCenters);
@@ -90,6 +91,7 @@ public class RoomFirstGenerator : SimpleWalkGenerator
 
         tilemapVisualizer.PaintFloorTiles(floor);
         DoorGenerator.CreateDoors(floor, corridorPositions, tilemapVisualizer, corridors);
+        ObjectGenerator.PlaceObjects(floor, actualCenterPositions, tilemapVisualizer, roomsList, currentOffset, tablePercentage, objectPercentage, treasurePercentage);
         WallGenerator.CreateWalls(floor, tilemapVisualizer);
     }
 
@@ -266,24 +268,19 @@ public class RoomFirstGenerator : SimpleWalkGenerator
 
         for (int yOffset = offset; yOffset < room.size.y - offset; yOffset++)
         {
-            roomEdges.Add((Vector2Int)room.min + new Vector2Int(offset, yOffset));
-            roomEdges.Add((Vector2Int)room.min + new Vector2Int(room.size.x - offset - 1, yOffset));
+            roomEdges.Add((Vector2Int)room.min + new Vector2Int(offset, yOffset));//start at lower left corner of the room and go up one tile each loop to get the left vertical edge
+            roomEdges.Add((Vector2Int)room.min + new Vector2Int(room.size.x - offset - 1, yOffset));//same as above except starting in the bottom right corner to get the right vertical edge
         }
 
         for (int xOffset = offset; xOffset < room.size.x - offset; xOffset++)
         {
-            roomEdges.Add((Vector2Int)room.min + new Vector2Int(xOffset, offset));
-            roomEdges.Add((Vector2Int)room.min + new Vector2Int(xOffset, room.size.y - offset - 1));
+            roomEdges.Add((Vector2Int)room.min + new Vector2Int(xOffset, offset));//Start in the bottom left corner moving right one tile each loop to get the lower horizontal edge
+            roomEdges.Add((Vector2Int)room.min + new Vector2Int(xOffset, room.size.y - offset - 1));//Same as above except starting in the upper left corner to get the upper horizontal edge
         }
 
-        return roomEdges;
-    }
+        actualCenterPositions.Add(new Vector2Int(room.min.x + (room.size.x - offset) / 2, room.min.y + (room.size.y - offset) / 2));//Get the centers of the rooms as registered on the floor positions hashset
 
-    private void GetActualRoomCenters(BoundsInt room)//get centers of the rooms as recorded in the floor list
-    {
-        Vector2Int roomCenter;
-        roomCenter = new Vector2Int((room.size.x - offset) / 2, (room.size.y - offset) / 2);
-        actualCenterPositions.Add(roomCenter);
+        return roomEdges;
     }
 
     private Vector2Int FindClosestPointTo(Vector2Int currentRoomCenter, List<Vector2Int> roomCenters)
