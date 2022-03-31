@@ -29,6 +29,9 @@ public class RoomFirstGenerator : SimpleWalkGenerator
     [SerializeField]
     private bool singleMixedRooms = false;
 
+    [SerializeField]
+    private bool clutteredObjects = false;
+
     //Doors and objects
     [SerializeField]
     [Range(0.1f, 1f)]
@@ -38,8 +41,20 @@ public class RoomFirstGenerator : SimpleWalkGenerator
 
     private HashSet<Vector2Int> corridors = new HashSet<Vector2Int>();
     private HashSet<Vector2Int> corridorPositions = new HashSet<Vector2Int>();
-    private HashSet<Vector2Int> actualCenterPositions = new HashSet<Vector2Int>();
+    private HashSet<Vector2Int> tablePositions = new HashSet<Vector2Int>();
+    private HashSet<Vector2Int> objectPositions = new HashSet<Vector2Int>();
     private List<BoundsInt> roomsCheck = new List<BoundsInt>();
+
+    private Dictionary<float, float> tableOffsets = new Dictionary<float, float>
+    {
+        {1.25f, 1.25f},//Upper right
+        {1.251f, 4f},//Lower right
+        {4.01f, 1.25f},//Upper Left
+        {4f, 4f},//Lower Left
+        {2f, 2f},//Center
+        {1.252f, 2f},//Center right
+        {4.02f, 2f}//Center left
+    };
 
     protected override void RunProceduralGeneration()
     {
@@ -91,7 +106,7 @@ public class RoomFirstGenerator : SimpleWalkGenerator
 
         tilemapVisualizer.PaintFloorTiles(floor);
         DoorGenerator.CreateDoors(floor, corridorPositions, tilemapVisualizer, corridors);
-        ObjectGenerator.PlaceObjects(floor, actualCenterPositions, tilemapVisualizer, roomsList, currentOffset, tablePercentage, objectPercentage, treasurePercentage);
+        ObjectGenerator.PlaceObjects(floor, tablePositions, tilemapVisualizer, objectPositions, currentOffset, tablePercentage, objectPercentage, treasurePercentage);
         WallGenerator.CreateWalls(floor, tilemapVisualizer);
     }
 
@@ -200,7 +215,7 @@ public class RoomFirstGenerator : SimpleWalkGenerator
         foreach (var room in rooms)//for each room get the edges then check if the floor contains a potition that is equal to an edge plus whatever direction the edge is facing, if so a corridor is connected to the room there
         {
             int corridorCount = 0;
-            List<Vector2Int> roomEdges = GetRoomEdges(room);
+            List<Vector2Int> roomEdges = GetRoomEdgesAndObjectLocations(room);
             foreach (var edge in roomEdges)
             {
                 if (edge.y == room.min.y + offset && floorPositions.Contains(edge + Vector2Int.down))
@@ -262,7 +277,7 @@ public class RoomFirstGenerator : SimpleWalkGenerator
     //    }
     //}
 
-    private List<Vector2Int> GetRoomEdges(BoundsInt room)//Get the outer edges of all rooms using the offset
+    private List<Vector2Int> GetRoomEdgesAndObjectLocations(BoundsInt room)//Get the outer edges of all rooms using the offset
     {
         List<Vector2Int> roomEdges = new List<Vector2Int>();
 
@@ -278,9 +293,77 @@ public class RoomFirstGenerator : SimpleWalkGenerator
             roomEdges.Add((Vector2Int)room.min + new Vector2Int(xOffset, room.size.y - offset - 1));//Same as above except starting in the upper left corner to get the upper horizontal edge
         }
 
-        actualCenterPositions.Add(new Vector2Int(room.min.x + (room.size.x - offset) / 2, room.min.y + (room.size.y - offset) / 2));//Get the centers of the rooms as registered on the floor positions hashset
+        int randomDictEntry = Random.Range(0, tableOffsets.Count);
+        float randomTableX = tableOffsets.ElementAt(randomDictEntry).Key;
+        float randomTableY = tableOffsets.ElementAt(randomDictEntry).Value;
+
+        tablePositions.Add(new Vector2Int(Mathf.RoundToInt(room.min.x + (room.size.x - offset) / randomTableX), Mathf.RoundToInt(room.min.y + (room.size.y - offset) / randomTableY)));//Get the centers of the rooms as registered on the floor positions hashset
+
+        //add object locations where not tablepositions and not edges and not neighbouring corridor
+        GetObjectLocations(room, roomEdges);
 
         return roomEdges;
+    }
+
+    private void GetObjectLocations(BoundsInt room, List<Vector2Int> roomEdges)
+    {
+        List<Vector2Int> allRoomPositions = GetAllRoomPositions(room);
+
+        var clutteredObjectLocations = allRoomPositions.Where(x => !tablePositions.Contains(x) && !roomEdges.Contains(x) && !NeighbouringCorridor(x) && !objectPositions.Contains(x));
+        var organizedObjectLocations = allRoomPositions.Where(x => !tablePositions.Contains(x) && !roomEdges.Contains(x) && NeighbouringWallsOrTables(roomEdges, x) && !objectPositions.Contains(x));
+
+        if (clutteredObjects)
+        {
+            foreach (var position in clutteredObjectLocations)
+            {
+                objectPositions.Add(position);
+            }
+        }
+        else
+        {
+            foreach (var position in organizedObjectLocations)
+            {
+                objectPositions.Add(position);
+            }
+        }
+    }
+
+    private bool NeighbouringWallsOrTables(List<Vector2Int> roomEdges, Vector2Int x)
+    {
+        foreach (var direction in Direction2D.eightDirectionsList)
+        {
+            if (tablePositions.Contains(x + direction) || roomEdges.Contains(x + direction))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private bool NeighbouringCorridor(Vector2Int x)
+    {
+        foreach (var direction in Direction2D.eightDirectionsList)
+        {
+            if (corridors.Contains(x + direction))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<Vector2Int> GetAllRoomPositions(BoundsInt room)
+    {
+        List<Vector2Int> roomPositions = new List<Vector2Int>();
+        for (int col = offset; col < room.size.x - offset; col++)
+        {
+            for (int row = offset; row < room.size.y - offset; row++)
+            {
+                Vector2Int position = (Vector2Int)room.min + new Vector2Int(col, row);
+                roomPositions.Add(position);
+            }
+        }
+        return roomPositions;
     }
 
     private Vector2Int FindClosestPointTo(Vector2Int currentRoomCenter, List<Vector2Int> roomCenters)

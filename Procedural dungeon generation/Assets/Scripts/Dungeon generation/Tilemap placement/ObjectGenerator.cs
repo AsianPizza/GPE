@@ -6,10 +6,10 @@ using UnityEngine;
 
 public static class ObjectGenerator
 {
-    public static void PlaceObjects(HashSet<Vector2Int> floorPosition, HashSet<Vector2Int> actualRoomCenters, TileMapVisuals tilemapVisualizer, List<BoundsInt> roomsList, int activeOffset, float tablesPercent, float ObjectPercent, float treasurePercent)
+    public static void PlaceObjects(HashSet<Vector2Int> floorPosition, HashSet<Vector2Int> actualRoomCenters, TileMapVisuals tilemapVisualizer, HashSet<Vector2Int> potentialObjectPositions, int activeOffset, float tablesPercent, float ObjectPercent, float treasurePercent)
     {
         var tablePositions = DetermineTablePositions(actualRoomCenters, tablesPercent);
-        //var objectPositions = DetermineObjectPositions(roomsList, tablePositions, ObjectPercent, treasurePercent);
+        var objectPositions = DetermineObjectPositions(potentialObjectPositions, tablePositions, ObjectPercent, treasurePercent);
 
         CreateTables(tilemapVisualizer, tablePositions);
     }
@@ -22,15 +22,15 @@ public static class ObjectGenerator
         }
     }
 
-    private static List<Vector2Int> DetermineTablePositions(HashSet<Vector2Int> roomCenters, float tablesPercent)
+    private static List<Vector2Int> DetermineTablePositions(HashSet<Vector2Int> potentialTablePositions, float tablesPercent)
     {
         List<Vector2Int> tablePositions = new List<Vector2Int>();
-        int numberOfTables = Mathf.RoundToInt(roomCenters.Count * tablesPercent);
-        tablePositions = roomCenters.OrderBy(x => Guid.NewGuid()).Take(numberOfTables).ToList();
+        int numberOfTables = Mathf.RoundToInt(potentialTablePositions.Count * tablesPercent);
+        tablePositions = potentialTablePositions.OrderBy(x => Guid.NewGuid()).Take(numberOfTables).ToList();
         return tablePositions;
     }
-
-    private static object DetermineObjectPositions(List<BoundsInt> roomsList, List<Vector2Int> tablePositions, float objectPercent, float treasurePercent)
+    //Get random locations within each room and place random items from our list of items in each location taking into account the "type" of room, being either cluttered or organized
+    private static object DetermineObjectPositions(HashSet<Vector2Int> potentialObjectPositions, List<Vector2Int> tablePositions, float objectPercent, float treasurePercent)
     {
         throw new NotImplementedException();
     }
