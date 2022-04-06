@@ -3,16 +3,20 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Tilemaps;
+using Random = UnityEngine.Random;
 
 public class TileMapVisuals : MonoBehaviour
 {
     [SerializeField]
-    private Tilemap floorTilemap, wallTilemap;
+    private Tilemap floorTilemap, wallTilemap, objectTilemap;
     [SerializeField]
     private TileBase floorTile, wallTop, wallSideRight, wallSideLeft, wallBottom, wallFull,
         wallInnerCornerDownLeft, wallInnerCornerDownRight, wallDiagonalCornerDownRight, wallDiagonalCornerDownLeft, wallDiagonalCornerUpRight, wallDiagonalCornerUpLeft,
         doorLeft, doorRight, doorUp, doorDown,
         table, chair, barrel, bones1, bones2;
+
+    [SerializeField]
+    private List<TileBase> objects;
 
     public void PaintFloorTiles(IEnumerable<Vector2Int> floorPositions)
     {
@@ -27,11 +31,25 @@ public class TileMapVisuals : MonoBehaviour
         }
     }
 
+    internal void PaintSingleChair(Vector2Int position)
+    {
+        TileBase tile = null;
+        tile = chair;
+        PaintSingeTile(objectTilemap, tile, position);
+    }
+
+    internal void PaintSingleObject(Vector2Int position)
+    {
+        TileBase tile = null;
+        tile = objects[Random.Range(0, objects.Count)];
+        PaintSingeTile(objectTilemap, tile, position);
+    }
+
     internal void PaintSingleTable(Vector2Int position)
     {
         TileBase tile = null;
         tile = table;
-        PaintSingeTile(floorTilemap, tile, position);
+        PaintSingeTile(objectTilemap, tile, position);
     }
 
     internal void PaintSingleBasicWall(Vector2Int position, string binaryType)
@@ -92,7 +110,7 @@ public class TileMapVisuals : MonoBehaviour
         }
 
         if (tile != null)
-            PaintSingeTile(floorTilemap, tile, position + direction);
+            PaintSingeTile(objectTilemap, tile, position + direction);
     }
 
     private void PaintSingeTile(Tilemap tilemap, TileBase tile, Vector2Int position)
@@ -103,6 +121,7 @@ public class TileMapVisuals : MonoBehaviour
 
     public void Clear()
     {
+        objectTilemap.ClearAllTiles();
         wallTilemap.ClearAllTiles();
         floorTilemap.ClearAllTiles();
     }
