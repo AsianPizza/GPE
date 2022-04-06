@@ -32,12 +32,18 @@ public class RoomFirstGenerator : SimpleWalkGenerator
     [SerializeField]
     private bool clutteredObjects = false;
 
+    [SerializeField]
+    [Range(1, 6)]
+    private float maxTablesPerRoom;
+
     //Doors and objects
     [SerializeField]
     [Range(0.1f, 1f)]
-    private float tablePercentage, objectPercentage, treasurePercentage;
+    private float tablePercentage, filledRoomPercent, objectPercentage, treasurePercentage;//from left to right, percentage of tables placed, percentage of rooms to fill with objects, percentage of objects per room, percentage of treasure within objects
 
-    public int currentOffset;
+    private int filledRooms = 0;//to track the number of currently filled rooms
+
+    public int currentOffset;//needed to use the offset for static classes etc.
 
     private HashSet<Vector2Int> corridors = new HashSet<Vector2Int>();
     private HashSet<Vector2Int> corridorPositions = new HashSet<Vector2Int>();
@@ -108,7 +114,7 @@ public class RoomFirstGenerator : SimpleWalkGenerator
         ClearBadTiles(tablePositions, objectPositions, floor);
 
         tilemapVisualizer.PaintFloorTiles(floor);
-        //DoorGenerator.CreateDoors(floor, corridorPositions, tilemapVisualizer, corridors);
+        DoorGenerator.CreateDoors(floor, corridorPositions, tilemapVisualizer, corridors);
         WallGenerator.CreateWalls(floor, tilemapVisualizer);
         ObjectGenerator.PlaceObjects(floor, tablePositions, chairPositions, tilemapVisualizer, objectPositions, currentOffset, tablePercentage, objectPercentage, treasurePercentage);
     }
@@ -234,7 +240,7 @@ public class RoomFirstGenerator : SimpleWalkGenerator
         foreach (var room in rooms)//for each room get the edges then check if the floor contains a potition that is equal to an edge plus whatever direction the edge is facing, if so a corridor is connected to the room there
         {
             int corridorCount = 0;
-            List<Vector2Int> roomEdges = GetRoomEdgesAndObjectLocations(room);
+            List<Vector2Int> roomEdges = GetRoomEdgesAndObjectLocations(room, rooms);
             foreach (var edge in roomEdges)
             {
                 if (edge.y == room.min.y + offset && floorPositions.Contains(edge + Vector2Int.down))
@@ -296,9 +302,10 @@ public class RoomFirstGenerator : SimpleWalkGenerator
     //    }
     //}
 
-    private List<Vector2Int> GetRoomEdgesAndObjectLocations(BoundsInt room)//Get the outer edges of all rooms using the offset
+    private List<Vector2Int> GetRoomEdgesAndObjectLocations(BoundsInt room, List<BoundsInt> rooms)//Get the outer edges of all rooms using the offset
     {
         List<Vector2Int> roomEdges = new List<Vector2Int>();
+        int roomsToFill = Mathf.RoundToInt(rooms.Count * filledRoomPercent);
 
         for (int yOffset = offset; yOffset < room.size.y - offset; yOffset++)
         {
@@ -312,12 +319,33 @@ public class RoomFirstGenerator : SimpleWalkGenerator
             roomEdges.Add((Vector2Int)room.min + new Vector2Int(xOffset, room.size.y - offset - 1));//Same as above except starting in the upper left corner to get the upper horizontal edge
         }
 
-        int randomDictEntry = Random.Range(0, tableOffsets.Count);
-        float randomTableX = tableOffsets.ElementAt(randomDictEntry).Key;
-        float randomTableY = tableOffsets.ElementAt(randomDictEntry).Value;
+        if (Random.Range(0.1f, 1f) <= filledRoomPercent && filledRooms < roomsToFill)
+        {
+            GenerateObjects(room, roomEdges);
+        }
 
-        tablePositions.Add(new Vector2Int(Mathf.RoundToInt(room.min.x + (room.size.x - offset) / randomTableX), Mathf.RoundToInt(room.min.y + (room.size.y - offset) / randomTableY)));//Get the centers of the rooms as registered on the floor positions hashset
-        tablePositions.Add(tablePositions.Last() + Direction2D.cardinalDirectionList[Random.Range(0, Direction2D.cardinalDirectionList.Count)]);
+        return roomEdges;
+    }
+
+    private void GenerateObjects(BoundsInt room, List<Vector2Int> roomEdges)
+    {
+        for (int i = 0; i < maxTablesPerRoom; i++)
+        {
+            //Incorporate max tables here
+            int randomDictEntry = Random.Range(0, tableOffsets.Count);
+            int previousDictEntry = randomDictEntry;
+            while(randomDictEntry == previousDictEntry)
+            {
+                randomDictEntry = Random.Range(0, tableOffsets.Count);
+            }
+
+            float randomTableX = tableOffsets.ElementAt(randomDictEntry).Key;
+            float randomTableY = tableOffsets.ElementAt(randomDictEntry).Value;
+
+
+            tablePositions.Add(new Vector2Int(Mathf.RoundToInt(room.min.x + (room.size.x - offset) / randomTableX), Mathf.RoundToInt(room.min.y + (room.size.y - offset) / randomTableY)));//Get the centers of the rooms as registered on the floor positions hashset
+            tablePositions.Add(tablePositions.Last() + Direction2D.cardinalDirectionList[Random.Range(0, Direction2D.cardinalDirectionList.Count)]);
+        }
 
         //add object locations where not tablepositions and not edges and not neighbouring corridor
         if (clutteredObjects)
@@ -328,8 +356,6 @@ public class RoomFirstGenerator : SimpleWalkGenerator
         {
             GetOrganizedObjectLocations(room, roomEdges);
         }
-
-        return roomEdges;
     }
 
     private void GetClutteredObjectLocations(BoundsInt room, List<Vector2Int> roomEdges)
