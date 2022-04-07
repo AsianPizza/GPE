@@ -7,16 +7,34 @@ using static PCGAlgorithms;
 
 public static class ObjectGenerator
 {
-    public static void PlaceObjects(HashSet<Vector2Int> floorPosition, HashSet<Vector2Int> actualRoomCenters, HashSet<Vector2Int> chairPositions, TileMapVisuals tilemapVisualizer, HashSet<Vector2Int> potentialObjectPositions, int activeOffset, float tablesPercent, float ObjectPercent, float treasurePercent)
+    public static void PlaceObjects(HashSet<Vector2Int> floorPosition, HashSet<Vector2Int> actualRoomCenters, HashSet<Vector2Int> chairPositions, TileMapVisuals tilemapVisualizer, HashSet<Vector2Int> potentialObjectPositions, HashSet<Vector2Int> potentialTreasurePositions, int activeOffset, float tablesPercent, float ObjectPercent, float treasurePercent)
     {
         var tablePositions = DetermineTablePositions(actualRoomCenters, tablesPercent);
-        var objectPositions = DetermineObjectPositions(potentialObjectPositions, tablePositions, ObjectPercent, treasurePercent);
+        var objectPositions = DetermineObjectPositions(potentialObjectPositions, tablePositions, ObjectPercent);
+        var treasurePositions = DetermineTreasurePositions(potentialTreasurePositions, treasurePercent);
 
         RemoveFaultyChairs(floorPosition, tablePositions, chairPositions);
 
         CreateTables(tilemapVisualizer, tablePositions);
         CreateObjects(tilemapVisualizer, objectPositions);
         CreateChairs(tilemapVisualizer, chairPositions);
+        CreateTreasures(tilemapVisualizer, treasurePositions);
+    }
+
+    private static void CreateTreasures(TileMapVisuals tilemapVisualizer, List<Vector2Int> treasurePositions)
+    {
+        foreach (var position in treasurePositions)
+        {
+            tilemapVisualizer.PaintSingleTreasure(position);
+        }
+    }
+
+    private static List<Vector2Int> DetermineTreasurePositions(HashSet<Vector2Int> potentialTreasurePositions, float treasurePercent)
+    {
+        List<Vector2Int> treasurePositions = new List<Vector2Int>();
+        int numberOfTreasures = Mathf.RoundToInt(potentialTreasurePositions.Count * treasurePercent);
+        treasurePositions = potentialTreasurePositions.OrderBy(x => Guid.NewGuid()).Take(numberOfTreasures).ToList();
+        return treasurePositions;
     }
 
     private static void RemoveFaultyChairs(HashSet<Vector2Int> floorPosition, List<Vector2Int> tablePositions, HashSet<Vector2Int> chairPositions)
@@ -72,7 +90,7 @@ public static class ObjectGenerator
         return tablePositions;
     }
     //Get random locations within each room and place random items from our list of items in each location taking into account the "type" of room, being either cluttered or organized
-    private static List<Vector2Int> DetermineObjectPositions(HashSet<Vector2Int> potentialObjectPositions, List<Vector2Int> tablePositions, float objectPercent, float treasurePercent)
+    private static List<Vector2Int> DetermineObjectPositions(HashSet<Vector2Int> potentialObjectPositions, List<Vector2Int> tablePositions, float objectPercent)
     {
         List<Vector2Int> objectPositions = new List<Vector2Int>();
         int numberOfObjects = Mathf.RoundToInt(potentialObjectPositions.Count * objectPercent);

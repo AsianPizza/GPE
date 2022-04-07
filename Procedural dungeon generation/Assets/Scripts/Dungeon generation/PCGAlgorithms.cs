@@ -2,8 +2,8 @@
 using UnityEngine;
 
 public class PCGAlgorithms : MonoBehaviour
-{
-    public static HashSet<Vector2Int> SimpleRandomWalk(Vector2Int startPosition, int walkLength)//Hashset allows for removing duplicates easily, as the algorithm can create duplicate tiles which we will want to remove or prevent
+{   //Hashset allows for removing duplicates easily, as the algorithm can create duplicate tiles which we will want to remove or prevent
+    public static HashSet<Vector2Int> SimpleRandomWalk(Vector2Int startPosition, int walkLength)
     {
         HashSet<Vector2Int> path = new HashSet<Vector2Int>();
         var previousPosition = startPosition;
@@ -18,7 +18,8 @@ public class PCGAlgorithms : MonoBehaviour
         return path;
     }
 
-    public static List<Vector2Int> RandomWalkCorridor(Vector2Int startPosition, int corridorLength)//Used List here because this is not used in repeatedly and we require the last item in the list to proceed generating from
+    //Used List here because this is not used repeatedly and we require the last item in the list to proceed generating from
+    public static List<Vector2Int> RandomWalkCorridor(Vector2Int startPosition, int corridorLength)
     {
         List<Vector2Int> corridor = new List<Vector2Int>();
 

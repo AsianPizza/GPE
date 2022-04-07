@@ -28,6 +28,11 @@ public class RoomFirstGenerator : SimpleWalkGenerator
 
     [SerializeField]
     private bool singleMixedRooms = false;
+    [SerializeField]
+    private int caveRoomCorridors = 1;
+    [SerializeField]
+    [Range(0.1f, 1)]
+    private float caveRoomPercentage;
 
     [SerializeField]
     private bool clutteredObjects = false;
@@ -50,6 +55,7 @@ public class RoomFirstGenerator : SimpleWalkGenerator
     private HashSet<Vector2Int> tablePositions = new HashSet<Vector2Int>();
     private HashSet<Vector2Int> chairPositions = new HashSet<Vector2Int>();
     private HashSet<Vector2Int> objectPositions = new HashSet<Vector2Int>();
+    private HashSet<Vector2Int> treasurePositions = new HashSet<Vector2Int>();
     private List<BoundsInt> roomsCheck = new List<BoundsInt>();
 
     private Dictionary<float, float> tableOffsets = new Dictionary<float, float>
@@ -116,7 +122,7 @@ public class RoomFirstGenerator : SimpleWalkGenerator
         tilemapVisualizer.PaintFloorTiles(floor);
         DoorGenerator.CreateDoors(floor, corridorPositions, tilemapVisualizer, corridors);
         WallGenerator.CreateWalls(floor, tilemapVisualizer);
-        ObjectGenerator.PlaceObjects(floor, tablePositions, chairPositions, tilemapVisualizer, objectPositions, currentOffset, tablePercentage, objectPercentage, treasurePercentage);
+        ObjectGenerator.PlaceObjects(floor, tablePositions, chairPositions, tilemapVisualizer, objectPositions, treasurePositions, currentOffset, tablePercentage, objectPercentage, treasurePercentage);
     }
 
     private void ClearBadTiles(HashSet<Vector2Int> tablePositions, HashSet<Vector2Int> objectPositions, HashSet<Vector2Int> floor)
@@ -234,10 +240,11 @@ public class RoomFirstGenerator : SimpleWalkGenerator
         return Vector2Int.Distance(candidate, finalDestination) <= Vector2Int.Distance(startingCenter, finalDestination);
     }
 
+    //for each room get the edges then check if the floor contains a potition that is equal to an edge plus whatever direction the edge is facing, if so a corridor is connected to the room there
     private List<BoundsInt> GetSingleCorridorRooms(List<BoundsInt> rooms, HashSet<Vector2Int> floorPositions)
     {
         List<BoundsInt> singleCorridorRooms = new List<BoundsInt>();
-        foreach (var room in rooms)//for each room get the edges then check if the floor contains a potition that is equal to an edge plus whatever direction the edge is facing, if so a corridor is connected to the room there
+        foreach (var room in rooms)
         {
             int corridorCount = 0;
             List<Vector2Int> roomEdges = GetRoomEdgesAndObjectLocations(room, rooms);
@@ -264,7 +271,7 @@ public class RoomFirstGenerator : SimpleWalkGenerator
                     corridorCount++;
                 }
             }
-            if (corridorCount == 1)
+            if (corridorCount == caveRoomCorridors)
                 singleCorridorRooms.Add(room);
         }
         return singleCorridorRooms;
@@ -323,6 +330,10 @@ public class RoomFirstGenerator : SimpleWalkGenerator
         {
             GenerateObjects(room, roomEdges);
         }
+        else
+        {
+            treasurePositions.Add((Vector2Int)Vector3Int.RoundToInt(room.center));
+        }
 
         return roomEdges;
     }
@@ -331,10 +342,10 @@ public class RoomFirstGenerator : SimpleWalkGenerator
     {
         for (int i = 0; i < maxTablesPerRoom; i++)
         {
-            //Incorporate max tables here
+            //Incorporate max tables
             int randomDictEntry = Random.Range(0, tableOffsets.Count);
             int previousDictEntry = randomDictEntry;
-            while(randomDictEntry == previousDictEntry)
+            while(randomDictEntry == previousDictEntry)//randomize the dictentry until we get a new location to spawn a table
             {
                 randomDictEntry = Random.Range(0, tableOffsets.Count);
             }
@@ -342,8 +353,8 @@ public class RoomFirstGenerator : SimpleWalkGenerator
             float randomTableX = tableOffsets.ElementAt(randomDictEntry).Key;
             float randomTableY = tableOffsets.ElementAt(randomDictEntry).Value;
 
-
-            tablePositions.Add(new Vector2Int(Mathf.RoundToInt(room.min.x + (room.size.x - offset) / randomTableX), Mathf.RoundToInt(room.min.y + (room.size.y - offset) / randomTableY)));//Get the centers of the rooms as registered on the floor positions hashset
+            //Get the centers of the rooms as registered on the floor positions hashset
+            tablePositions.Add(new Vector2Int(Mathf.RoundToInt(room.min.x + (room.size.x - offset) / randomTableX), Mathf.RoundToInt(room.min.y + (room.size.y - offset) / randomTableY)));
             tablePositions.Add(tablePositions.Last() + Direction2D.cardinalDirectionList[Random.Range(0, Direction2D.cardinalDirectionList.Count)]);
         }
 
@@ -357,7 +368,8 @@ public class RoomFirstGenerator : SimpleWalkGenerator
             GetOrganizedObjectLocations(room, roomEdges);
         }
     }
-
+    
+    //entirely random object locations within the rooms
     private void GetClutteredObjectLocations(BoundsInt room, List<Vector2Int> roomEdges)
     {
         List<Vector2Int> allRoomPositions = GetAllRoomPositions(room);
@@ -370,6 +382,7 @@ public class RoomFirstGenerator : SimpleWalkGenerator
         }
     }
 
+    //organized objecet locations only along walls and chairs next to tables
     private void GetOrganizedObjectLocations(BoundsInt room, List<Vector2Int> roomEdges)
     {
         List<Vector2Int> allRoomPositions = GetAllRoomPositions(room);
@@ -474,6 +487,7 @@ public class RoomFirstGenerator : SimpleWalkGenerator
         return floor;
     }
 
+    //randomly switch between random walk rooms and BSP rooms
     private HashSet<Vector2Int> CreateMixedRooms(List<BoundsInt> roomsList)
     {
         HashSet<Vector2Int> floor = new HashSet<Vector2Int>();
@@ -508,9 +522,14 @@ public class RoomFirstGenerator : SimpleWalkGenerator
         return floor;
     }
 
-    private HashSet<Vector2Int> CreateSingleMixedRooms(List<BoundsInt> roomsList, List<BoundsInt> singleCorridorRooms, HashSet<Vector2Int> currentFloor)
+    //add cave rooms only at the locations of rooms that have only a single corridor connected to them
+    private HashSet<Vector2Int> CreateSingleMixedRooms(List<BoundsInt> roomsList, List<BoundsInt> potentialCaverooms, HashSet<Vector2Int> currentFloor)
     {
         HashSet<Vector2Int> floor = new HashSet<Vector2Int>();
+        List<BoundsInt> singleCorridorRooms = new List<BoundsInt>();
+        int numberOfCaveRooms = Mathf.RoundToInt(potentialCaverooms.Count * caveRoomPercentage);
+        singleCorridorRooms = potentialCaverooms.OrderBy(x => Guid.NewGuid()).Take(numberOfCaveRooms).ToList();
+
 
         foreach (var room in singleCorridorRooms)//remove the previously generated rectangular rooms from the floor hashset
         {

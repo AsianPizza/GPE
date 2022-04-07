@@ -13,7 +13,7 @@ public class TileMapVisuals : MonoBehaviour
     private TileBase floorTile, wallTop, wallSideRight, wallSideLeft, wallBottom, wallFull,
         wallInnerCornerDownLeft, wallInnerCornerDownRight, wallDiagonalCornerDownRight, wallDiagonalCornerDownLeft, wallDiagonalCornerUpRight, wallDiagonalCornerUpLeft,
         doorLeft, doorRight, doorUp, doorDown,
-        table, chair, barrel, bones1, bones2;
+        table, chair, barrel, chest, bones;
 
     [SerializeField]
     private List<TileBase> objects;
@@ -42,6 +42,13 @@ public class TileMapVisuals : MonoBehaviour
     {
         TileBase tile = null;
         tile = objects[Random.Range(0, objects.Count)];
+        PaintSingeTile(objectTilemap, tile, position);
+    }
+
+    internal void PaintSingleTreasure(Vector2Int position)
+    {
+        TileBase tile = null;
+        tile = chest;
         PaintSingeTile(objectTilemap, tile, position);
     }
 
